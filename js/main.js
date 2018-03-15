@@ -1,16 +1,36 @@
 import Player from './player/index'
 import Enemy from './npc/enemy'
 import BackGround from './runtime/background'
+import ProgressBar from './runtime/progressbar'
 import GameInfo from './runtime/gameinfo'
 import Music from './runtime/music'
 import DataBus from './databus'
+import {TARGET_ICON_WIDTH, TARGET_ICON_HEIGHT, MIN_ICON_NUM, MAX_ICON_NUM} from './player/numicon'
+
+const screenWidth  = window.innerWidth
+const screenHeight = window.innerHeight
 
 let ctx = canvas.getContext('2d')
 let databus = new DataBus()
+let bar = new ProgressBar(ctx)
+let iconStatus = 0 // 0 - number side
+                     // 1 - number side expire, turn to background side
+                     // 2 - background side expire, game failed
+let initIcons = 4
+let maxIcons = 9
+let initInterval = 1500
 
 /**
  * 游戏主函数
  */
+function rnd(start, end){
+  return Math.floor(Math.random() * (end - start) + start)
+}
+
+const __ = {
+  timer: Symbol('timer'),
+}
+
 export default class Main {
   constructor() {
     // 维护当前requestAnimationFrame的id
@@ -28,6 +48,11 @@ export default class Main {
     )
 
     this.bg = new BackGround(ctx)
+    this.bar = bar
+
+    this.newStart()
+
+
     this.player = new Player(ctx)
     this.gameinfo = new GameInfo()
     this.music = new Music()
@@ -44,6 +69,86 @@ export default class Main {
     )
   }
 
+  newStart() {
+    this[__.timer] = null
+    this.icons = initIcons;
+    this.arrPostion = this.genPositions();
+    this.arrIcons = this.genIconNumbers();
+    this.arrBgNums = this.genIconNumbers();
+    databus.clearNumIcon()
+    databus.clearBgIcon()
+    databus.fetchNumIconFromPool(this.arrIcons, this.arrPostion)
+    databus.fetchBgIconFromPool(this.arrBgNums, this.arrPostion)
+    this.iconsStatus = 0
+    this.interval = initInterval
+    this[__.timer] = setInterval(
+        this.iconNumTimerFunc.bind(this),
+        this.interval
+    )
+  }
+
+  genPositions() {
+    let arrPosition = [];
+    for (let i = 0; i < this.icons; i++) {
+      let pos = {};
+      pos.x = rnd(TARGET_ICON_WIDTH / 2, screenWidth - TARGET_ICON_WIDTH)
+      pos.y = rnd(TARGET_ICON_HEIGHT / 2, screenHeight - TARGET_ICON_HEIGHT - 50)
+      console.log('[x,y] = ' + "[" + pos.x + "," + pos.y + "]")
+      while (!this.checkPosOverlap(arrPosition, pos)) {
+        pos.x = rnd(TARGET_ICON_WIDTH / 2, screenWidth - TARGET_ICON_WIDTH)
+        pos.y = rnd(TARGET_ICON_HEIGHT / 2, screenHeight - TARGET_ICON_HEIGHT - 50)
+        console.log('[x,y] = ' + "[" + pos.x + "," + pos.y + "]")
+      }
+      console.log('  push!')
+      arrPosition.push(pos)
+    }
+    return arrPosition;
+  }
+
+  checkPosOverlap(arrPos, posB) {
+    for (let idx = 0; idx < arrPos.length; idx++) {
+      let posA = arrPos[idx];
+      let dis = (posA.x - posB.x) * (posA.x - posB.x) + (posA.y - posB.y) * (posA.y - posB.y)
+      if (dis < TARGET_ICON_WIDTH * TARGET_ICON_WIDTH ) {
+        return false
+      }
+    }
+    return true
+  }
+
+  genIconNumbers() {
+    let arrIcons = [];
+    for (let i = 0; i < this.icons; i++) {
+      let icon = rnd(MIN_ICON_NUM - 1, MAX_ICON_NUM  + 1);
+      while (!this.checkIconNotConflict(arrIcons, icon) || icon < MIN_ICON_NUM || icon > MAX_ICON_NUM) {
+        icon = rnd(MIN_ICON_NUM - 1, MAX_ICON_NUM  + 1);
+      }
+      arrIcons.push(icon);
+    }
+    return arrIcons;
+  }
+
+  checkIconNotConflict(arrIcons, icon) {
+    for (let i = 0; i < arrIcons.length; i++) {
+      if (arrIcons[i] === icon) {
+        return false
+      }
+    }
+    return true;
+  }
+
+  iconNumTimerFunc() {
+    databus.numIcons.forEach( (icon) => {
+      icon.visible = false
+    })
+    databus.bgIcons.forEach( (icon) => {
+      icon.visible = true;
+    })
+    clearInterval(this[__.timer])
+    this.bar.enable()
+    this.iconsStatus = 1
+  }
+  
   /**
    * 随着帧数变化的敌机生成逻辑
    * 帧数取模定义成生成的频率
@@ -111,12 +216,21 @@ export default class Main {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     this.bg.render(ctx)
+    this.bar.render(ctx)
 
     databus.bullets
       .concat(databus.enemys)
       .forEach((item) => {
         item.drawToCanvas(ctx)
       })
+
+    databus.numIcons.forEach( (item) => {
+      item.drawToCanvas(ctx)
+    })
+
+    databus.bgIcons.forEach( (item) => {
+      item.drawToCanvas(ctx)
+    })
 
     this.player.drawToCanvas(ctx)
 
@@ -146,6 +260,7 @@ export default class Main {
       return;
 
     this.bg.update()
+    this.bar.update()
 
     databus.bullets
       .concat(databus.enemys)
@@ -160,6 +275,19 @@ export default class Main {
     if (databus.frame % 20 === 0) {
       this.player.shoot()
       this.music.playShoot()
+    }
+
+    if (this.bar.timeout && this.iconsStatus == 1) {
+      this.bar.disable();
+
+      databus.numIcons.forEach( (item) => {
+        item.visible = true
+      })
+      databus.bgIcons.forEach( (item) => {
+        item.visible = false
+      })
+
+      databus.gameOver = true
     }
   }
 

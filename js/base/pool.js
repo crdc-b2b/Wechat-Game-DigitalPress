@@ -35,6 +35,14 @@ export default class Pool {
     return result
   }
 
+  /*
+  * only fetch, no need to return it.
+  * */
+  fetchItemByNum(name, num) {
+    let pool = this.getPoolBySign(name)
+    return pool[num - 1]
+  }
+
   /**
    * 将对象回收到对象池
    * 方便后续继续使用

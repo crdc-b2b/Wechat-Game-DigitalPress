@@ -21,10 +21,12 @@ export default class BackGround extends Sprite {
   }
 
   update() {
+    /*
     this.top += 2
 
     if ( this.top >= screenHeight )
       this.top = 0
+      */
   }
 
   /**
@@ -41,11 +43,11 @@ export default class BackGround extends Sprite {
       this.width,
       this.height,
       0,
-      -screenHeight + this.top,
+      this.top,
       screenWidth,
       screenHeight
     )
-
+    /*
     ctx.drawImage(
       this.img,
       0,
@@ -57,5 +59,6 @@ export default class BackGround extends Sprite {
       screenWidth,
       screenHeight
     )
+    */
   }
 }
