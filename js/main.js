@@ -1,5 +1,3 @@
-import Player from './player/index'
-import Enemy from './npc/enemy'
 import BackGround from './runtime/background'
 import ProgressBar from './runtime/progressbar'
 import GameInfo from './runtime/gameinfo'
@@ -47,13 +45,16 @@ export default class Main {
       this.touchHandler
     )
 
+    canvas.removeEventListener(
+        'touchstart',
+        this.pressHandler
+    )
+
     this.bg = new BackGround(ctx)
     this.bar = bar
 
     this.newStart()
 
-
-    this.player = new Player(ctx)
     this.gameinfo = new GameInfo()
     this.music = new Music()
 
@@ -74,6 +75,7 @@ export default class Main {
     this.icons = initIcons;
     this.arrPostion = this.genPositions();
     this.arrIcons = this.genIconNumbers();
+    this.arrNumbers = this.arrIcons.slice().sort(function(a,b) { return a - b })
     this.arrBgNums = this.genIconNumbers();
     databus.clearNumIcon()
     databus.clearBgIcon()
@@ -92,11 +94,11 @@ export default class Main {
     for (let i = 0; i < this.icons; i++) {
       let pos = {};
       pos.x = rnd(TARGET_ICON_WIDTH / 2, screenWidth - TARGET_ICON_WIDTH)
-      pos.y = rnd(TARGET_ICON_HEIGHT / 2, screenHeight - TARGET_ICON_HEIGHT - 50)
+      pos.y = rnd(TARGET_ICON_HEIGHT / 2, screenHeight - TARGET_ICON_HEIGHT - 180)
       console.log('[x,y] = ' + "[" + pos.x + "," + pos.y + "]")
       while (!this.checkPosOverlap(arrPosition, pos)) {
         pos.x = rnd(TARGET_ICON_WIDTH / 2, screenWidth - TARGET_ICON_WIDTH)
-        pos.y = rnd(TARGET_ICON_HEIGHT / 2, screenHeight - TARGET_ICON_HEIGHT - 50)
+        pos.y = rnd(TARGET_ICON_HEIGHT / 2, screenHeight - TARGET_ICON_HEIGHT - 180)
         console.log('[x,y] = ' + "[" + pos.x + "," + pos.y + "]")
       }
       console.log('  push!')
@@ -144,50 +146,76 @@ export default class Main {
     databus.bgIcons.forEach( (icon) => {
       icon.visible = true;
     })
+
     clearInterval(this[__.timer])
     this.bar.enable()
+    this.pressHandler = this.pressEventHandler.bind(this)
+    canvas.addEventListener('touchstart', this.pressHandler)
     this.iconsStatus = 1
   }
-  
-  /**
-   * 随着帧数变化的敌机生成逻辑
-   * 帧数取模定义成生成的频率
-   */
-  enemyGenerate() {
-    if (databus.frame % 30 === 0) {
-      let enemy = databus.pool.getItemByClass('enemy', Enemy)
-      enemy.init(6)
-      databus.enemys.push(enemy)
+
+  pressEventHandler(e) {
+    e.preventDefault()
+    if (this.iconsStatus != 1) {
+      return
     }
-  }
 
-  // 全局碰撞检测
-  collisionDetection() {
-    let that = this
-
-    databus.bullets.forEach((bullet) => {
-      for (let i = 0, il = databus.enemys.length; i < il; i++) {
-        let enemy = databus.enemys[i]
-
-        if (!enemy.isPlaying && enemy.isCollideWith(bullet)) {
-          enemy.playAnimation()
-          that.music.playExplosion()
-
-          bullet.visible = false
-          databus.score += 1
-
-          break
+    let x = e.touches[0].clientX
+    let y = e.touches[0].clientY
+    let pressed = - 1;
+    for (let idx = 0; idx < this.arrPostion.length; idx++) {
+      let x1 = this.arrPostion[idx].x;
+      let y1 = this.arrPostion[idx].y;
+      if ( x > x1 && (x < (x1 + TARGET_ICON_WIDTH)) ) {
+        if ( y > y1  && (y < (y1 + TARGET_ICON_WIDTH)) ) {
+          pressed = idx
+          break;
         }
       }
-    })
+    }
 
-    for (let i = 0, il = databus.enemys.length; i < il; i++) {
-      let enemy = databus.enemys[i]
+    if (pressed != -1) {
+      let ic = this.arrIcons[pressed]
+      if (ic === this.arrNumbers[0]) {
+        databus.numIcons[pressed].visible = true;
+        databus.bgIcons[pressed].visible = false;
+        this.arrNumbers.shift()
+        this.music.playShoot()
 
-      if (this.player.isCollideWith(enemy)) {
+        if (this.arrNumbers.length == 0) {
+          console.log('successful!')
+
+          databus.score += 1
+          this.iconsStatus = 2
+          this.bar.disable();
+
+          initIcons += 1
+          if (initIcons > maxIcons) {
+            initIcons = maxIcons
+            initInterval -= 200
+            if (initInterval < 500) {
+              initInterval = 500
+            }
+          }
+          let score = databus.score
+          this.restart()
+          databus.score = score
+        }
+      } else {
+        console.log('failed!')
+
+        this.music.playExplosion()
+        initIcons = 4
+        initInterval = 1500
+        this.bar.disable();
+        databus.numIcons.forEach( (item) => {
+          item.visible = true
+        })
+        databus.bgIcons.forEach( (item) => {
+          item.visible = false
+        })
+        this.iconsStatus = 5
         databus.gameOver = true
-
-        break
       }
     }
   }
@@ -218,26 +246,12 @@ export default class Main {
     this.bg.render(ctx)
     this.bar.render(ctx)
 
-    databus.bullets
-      .concat(databus.enemys)
-      .forEach((item) => {
-        item.drawToCanvas(ctx)
-      })
-
     databus.numIcons.forEach( (item) => {
       item.drawToCanvas(ctx)
     })
 
     databus.bgIcons.forEach( (item) => {
       item.drawToCanvas(ctx)
-    })
-
-    this.player.drawToCanvas(ctx)
-
-    databus.animations.forEach((ani) => {
-      if (ani.isPlaying) {
-        ani.aniRender(ctx)
-      }
     })
 
     this.gameinfo.renderGameScore(ctx, databus.score)
@@ -262,21 +276,6 @@ export default class Main {
     this.bg.update()
     this.bar.update()
 
-    databus.bullets
-      .concat(databus.enemys)
-      .forEach((item) => {
-        item.update()
-      })
-
-    this.enemyGenerate()
-
-    this.collisionDetection()
-
-    if (databus.frame % 20 === 0) {
-      this.player.shoot()
-      this.music.playShoot()
-    }
-
     if (this.bar.timeout && this.iconsStatus == 1) {
       this.bar.disable();
 
@@ -286,7 +285,7 @@ export default class Main {
       databus.bgIcons.forEach( (item) => {
         item.visible = false
       })
-
+      this.iconsStatus = 10
       databus.gameOver = true
     }
   }

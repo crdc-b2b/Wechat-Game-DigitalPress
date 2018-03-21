@@ -37,7 +37,7 @@ export default class ProgressBar extends Sprite {
 
     update() {
         if (databus.frame % 20 === 0 && !this.timeout) {
-            this.elapse += screenWidth / 10;
+            this.elapse += screenWidth / 20;
             if (this.elapse > screenWidth - 20) {
                 this.elapse = screenWidth - 20;
                 this.timeout = true;
