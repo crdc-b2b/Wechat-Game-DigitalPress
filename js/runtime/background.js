@@ -14,10 +14,10 @@ const BG_HEIGHT    = 1405
 export default class BackGround extends Sprite {
   constructor(ctx) {
     super(BG_IMG_SRC, BG_WIDTH, BG_HEIGHT)
-
-    this.render(ctx)
-
+    console.log('bk -000')
     this.top = 0
+    this.render(ctx)
+    console.log('bk -111')
   }
 
   update() {

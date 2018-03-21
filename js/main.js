@@ -33,13 +33,12 @@ export default class Main {
   constructor() {
     // 维护当前requestAnimationFrame的id
     this.aniId = 0
-
     this.restart()
   }
 
   restart() {
     databus.reset()
-
+    console.log('111')
     canvas.removeEventListener(
       'touchstart',
       this.touchHandler
@@ -49,25 +48,26 @@ export default class Main {
         'touchstart',
         this.pressHandler
     )
-
+    console.log('222')
     this.bg = new BackGround(ctx)
     this.bar = bar
-
+    console.log('333')
     this.newStart()
-
+    console.log('444')
     this.gameinfo = new GameInfo()
     this.music = new Music()
-
+    console.log('555')
     this.bindLoop = this.loop.bind(this)
     this.hasEventBind = false
-
+    console.log('666')
     // 清除上一局的动画
     window.cancelAnimationFrame(this.aniId);
-
+    console.log('777')
     this.aniId = window.requestAnimationFrame(
       this.bindLoop,
       canvas
     )
+    console.log('888')
   }
 
   newStart() {
